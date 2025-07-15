@@ -38,7 +38,7 @@ namespace TerathonPortGenerator
                     Array.Empty<CXUnsavedFile>(),
                     CXTranslationUnit_Flags.CXTranslationUnit_None);
 
-                CollectEntities(tu.TranslationUnitCursor, tu, types, functions);
+                CollectEntities(tu.Cursor, tu, types, functions);
             }
 
             // Generate interfaces
@@ -58,18 +58,18 @@ namespace TerathonPortGenerator
             List<TypeInfo> types, List<FunctionInfo> functions)
         {
             if ((cursor.Kind == CXCursorKind.CXCursor_StructDecl || cursor.Kind == CXCursorKind.CXCursor_ClassDecl)
-                && cursor.IsDefinition && !string.IsNullOrEmpty(cursor.Spelling))
+                && cursor.IsDefinition && !string.IsNullOrEmpty(cursor.Spelling.ToString()))
             {
-                var name = cursor.Spelling.Replace("TS", "");
-                var size = (int)tu.LayoutOfType(cursor.Type).Value;
+                var name = cursor.Spelling.ToString().Replace("TS", "");
+                var size = (int)cursor.Type.SizeOf;
                 var fields = new List<FieldInfo>();
                 var methods = new List<MethodInfo>();
-                foreach (var c in cursor.CursorChildren)
+                foreach (var c in CursorHelpers.GetChildren(cursor))
                 {
                     if (c.Kind == CXCursorKind.CXCursor_FieldDecl)
                     {
-                        var offset = tu.OffsetOfField(cursor.Type, c).Value;
-                        fields.Add(new FieldInfo(c.Spelling, c.Type.Spelling, MapType(c.Type.Spelling), offset));
+                        var offset = cursor.Type.GetOffsetOf(c.Spelling.ToString());
+                        fields.Add(new FieldInfo(c.Spelling.ToString(), c.Type.Spelling.ToString(), MapType(c.Type.Spelling.ToString()), offset));
                     }
                     else if (c.Kind == CXCursorKind.CXCursor_CXXMethod)
                     {
@@ -78,12 +78,12 @@ namespace TerathonPortGenerator
                 }
                 types.Add(new TypeInfo(name, size, fields, methods));
             }
-            else if (cursor.Kind == CXCursorKind.CXCursor_FunctionDecl && cursor.AccessSpecifier == CX_CXXAccessSpecifier.CX_CXXPublic)
+            else if (cursor.Kind == CXCursorKind.CXCursor_FunctionDecl && cursor.CXXAccessSpecifier == CX_CXXAccessSpecifier.CX_CXXPublic)
             {
                 functions.Add(FunctionInfo.FromCursor(cursor, tu));
             }
 
-            foreach (var child in cursor.CursorChildren)
+            foreach (var child in CursorHelpers.GetChildren(cursor))
                 CollectEntities(child, tu, types, functions);
         }
 
@@ -113,27 +113,27 @@ namespace TerathonPortGenerator
     {
         public static MethodInfo FromCursor(CXCursor cursor, CXTranslationUnit tu)
         {
-            var returnType = cursor.ResultType.Spelling;
+            var returnType = cursor.ResultType.Spelling.ToString();
             var csReturn = Program.MapType(returnType);
-            var parameters = cursor.Children
+            var parameters = CursorHelpers.GetChildren(cursor)
                 .Where(c => c.Kind == CXCursorKind.CXCursor_ParmDecl)
-                .Select(p => new ParamInfo(p.Spelling, p.Type.Spelling, Program.MapType(p.Type.Spelling)))
+                .Select(p => new ParamInfo(p.Spelling.ToString(), p.Type.Spelling.ToString(), Program.MapType(p.Type.Spelling.ToString())))
                 .ToList();
 
             // Extract C++ body tokens
-            tu.Tokenize(cursor.Extent, out var tokens);
+            var tokens = tu.Tokenize(cursor.Extent).ToArray();
             var bodySb = new StringBuilder();
             bool inBody = false;
             foreach (var tok in tokens)
             {
-                var s = tok.Spelling.ToString();
+                var s = tok.GetSpelling(tu).ToString();
                 if (s == "{") inBody = true;
                 if (inBody) bodySb.Append(s).Append(' ');
                 if (s == "}") break;
             }
 
             var translated = Translator.TranslateBody(bodySb.ToString());
-            return new MethodInfo(cursor.Spelling, returnType, csReturn, parameters, cursor.IsStaticMethod, translated);
+            return new MethodInfo(cursor.Spelling.ToString(), returnType, csReturn, parameters, cursor.IsStatic, translated);
         }
     }
 
@@ -148,26 +148,26 @@ namespace TerathonPortGenerator
     {
         public static FunctionInfo FromCursor(CXCursor cursor, CXTranslationUnit tu)
         {
-            var returnType = cursor.ResultType.Spelling;
+            var returnType = cursor.ResultType.Spelling.ToString();
             var csReturn = Program.MapType(returnType);
-            var parameters = cursor.Children
+            var parameters = CursorHelpers.GetChildren(cursor)
                 .Where(c => c.Kind == CXCursorKind.CXCursor_ParmDecl)
-                .Select(p => new ParamInfo(p.Spelling, p.Type.Spelling, Program.MapType(p.Type.Spelling)))
+                .Select(p => new ParamInfo(p.Spelling.ToString(), p.Type.Spelling.ToString(), Program.MapType(p.Type.Spelling.ToString())))
                 .ToList();
 
             // Extract C++ body tokens
-            tu.Tokenize(cursor.Extent, out var tokens);
+            var tokens = tu.Tokenize(cursor.Extent).ToArray();
             var bodySb = new StringBuilder();
             bool inBody = false;
             foreach (var tok in tokens)
             {
-                var s = tok.Spelling.ToString();
+                var s = tok.GetSpelling(tu).ToString();
                 if (s == "{") inBody = true;
                 if (inBody) bodySb.Append(s).Append(' ');
                 if (s == "}") break;
             }
 
-            return new FunctionInfo(cursor.Spelling, returnType, csReturn, parameters, Translator.TranslateBody(bodySb.ToString()));
+            return new FunctionInfo(cursor.Spelling.ToString(), returnType, csReturn, parameters, Translator.TranslateBody(bodySb.ToString()));
         }
     }
 
@@ -281,6 +281,22 @@ namespace TerathonPortGenerator
             }
             sb.AppendLine("    }\n}");
             return sb.ToString();
+        }
+    }
+
+    // --- Helper utilities ---
+
+    static class CursorHelpers
+    {
+        public static unsafe IEnumerable<CXCursor> GetChildren(CXCursor cursor)
+        {
+            var list = new List<CXCursor>();
+            cursor.VisitChildren((child, parent, data) =>
+            {
+                list.Add(child);
+                return CXChildVisitResult.CXChildVisit_Continue;
+            }, new CXClientData(IntPtr.Zero));
+            return list;
         }
     }
 }

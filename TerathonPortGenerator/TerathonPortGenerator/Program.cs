@@ -8,18 +8,35 @@ using ClangSharp.Interop;
 
 namespace TerathonPortGenerator
 {
-	class Program
-	{
-		static void Main(string[] args)
-		{
-			if (args.Length < 2)
-			{
-				Console.Error.WriteLine("Usage: TerathonPortGenerator <input-dir> <output-dir>");
-				return;
-			}
-			string inputDir = args[0];
-			string outputDir = args[1];
-			Directory.CreateDirectory(outputDir);
+        public class Program
+        {
+                public static void Main()
+                {
+                        // Resolve paths relative to the TerathonPortGenerator folder
+                        // Climb up from "bin/Debug/net8.0/linux-x64" to the solution root
+                        string baseDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
+                        string inputDir = Path.Combine(baseDir, "Terathon-Math-Library");
+                        string outputDir = Path.Combine(baseDir, "Terathon-Math-Library-CSharp");
+
+                        // Clean output directory before generation but preserve the project file
+                        if (Directory.Exists(outputDir))
+                        {
+                                foreach (var file in Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories))
+                                {
+                                        if (!file.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                                File.Delete(file);
+                                        }
+                                }
+                                foreach (var dir in Directory.GetDirectories(outputDir))
+                                {
+                                        Directory.Delete(dir, recursive: true);
+                                }
+                        }
+                        else
+                        {
+                                Directory.CreateDirectory(outputDir);
+                        }
 
 			var index = CXIndex.Create();
 			var headerFiles = Directory.GetFiles(inputDir, "*.h", SearchOption.AllDirectories)

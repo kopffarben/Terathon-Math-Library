@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -8,295 +8,283 @@ using ClangSharp.Interop;
 
 namespace TerathonPortGenerator
 {
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            if (args.Length < 2)
-            {
-                Console.Error.WriteLine("Usage: TerathonPortGenerator <input-dir> <output-dir>");
-                return;
-            }
-            string inputDir = args[0];
-            string outputDir = args[1];
-            Directory.CreateDirectory(outputDir);
+	class Program
+	{
+		static void Main(string[] args)
+		{
+			if (args.Length < 2)
+			{
+				Console.Error.WriteLine("Usage: TerathonPortGenerator <input-dir> <output-dir>");
+				return;
+			}
+			string inputDir = args[0];
+			string outputDir = args[1];
+			Directory.CreateDirectory(outputDir);
 
-            var index = CXIndex.Create();
-            var headerFiles = Directory.GetFiles(inputDir, "*.h", SearchOption.AllDirectories)
-                .Concat(Directory.GetFiles(inputDir, "*.hpp", SearchOption.AllDirectories));
+			var index = CXIndex.Create();
+			var headerFiles = Directory.GetFiles(inputDir, "*.h", SearchOption.AllDirectories)
+				.Concat(Directory.GetFiles(inputDir, "*.hpp", SearchOption.AllDirectories));
 
-            var types = new List<TypeInfo>();
-            var functions = new List<FunctionInfo>();
+			var types = new List<TypeInfo>();
+			var functions = new List<FunctionInfo>();
 
-            foreach (var file in headerFiles)
-            {
-                // Parse the C++ header
-                using var tu = CXTranslationUnit.Parse(
-                    index,
-                    file,
-                    new string[] { "-x", "c++", "-std=c++17", $"-I{inputDir}" },
-                    Array.Empty<CXUnsavedFile>(),
-                    CXTranslationUnit_Flags.CXTranslationUnit_None);
+			foreach (var file in headerFiles)
+			{
+				// Parse the C++ header
+				using var tu = CXTranslationUnit.Parse(
+					index,
+					file,
+					new string[] { "-x", "c++", "-std=c++17", $"-I{inputDir}" },
+					Array.Empty<CXUnsavedFile>(),
+					CXTranslationUnit_Flags.CXTranslationUnit_None);
 
-                CollectEntities(tu.Cursor, tu, types, functions);
-            }
+				CollectEntities(tu.Cursor, tu, types, functions);
+			}
 
-            // Generate interfaces
-            File.WriteAllText(Path.Combine(outputDir, "Interfaces.cs"), InterfaceGenerator.Generate());
+			// Generate interfaces
+			File.WriteAllText(Path.Combine(outputDir, "Interfaces.cs"), InterfaceGenerator.Generate());
 
-            // Generate structs
-            foreach (var t in types)
-                File.WriteAllText(Path.Combine(outputDir, t.Name + ".cs"), StructGenerator.Generate(t));
+			// Generate structs
+			foreach (var t in types)
+				File.WriteAllText(Path.Combine(outputDir, t.Name + ".cs"), StructGenerator.Generate(t));
 
-            // Generate free functions
-            File.WriteAllText(Path.Combine(outputDir, "TerathonUtils.cs"), FunctionGenerator.Generate(functions));
+			// Generate free functions
+			File.WriteAllText(Path.Combine(outputDir, "TerathonUtils.cs"), FunctionGenerator.Generate(functions));
 
-            Console.WriteLine($"Generated {types.Count} types and {functions.Count} functions into {outputDir}");
-        }
+			Console.WriteLine($"Generated {types.Count} types and {functions.Count} functions into {outputDir}");
+		}
 
-        static void CollectEntities(CXCursor cursor, CXTranslationUnit tu,
-            List<TypeInfo> types, List<FunctionInfo> functions)
-        {
-            if ((cursor.Kind == CXCursorKind.CXCursor_StructDecl || cursor.Kind == CXCursorKind.CXCursor_ClassDecl)
-                && cursor.IsDefinition && !string.IsNullOrEmpty(cursor.Spelling.ToString()))
-            {
-                var name = cursor.Spelling.ToString().Replace("TS", "");
-                var size = (int)cursor.Type.SizeOf;
-                var fields = new List<FieldInfo>();
-                var methods = new List<MethodInfo>();
-                foreach (var c in CursorHelpers.GetChildren(cursor))
-                {
-                    if (c.Kind == CXCursorKind.CXCursor_FieldDecl)
-                    {
-                        var offset = cursor.Type.GetOffsetOf(c.Spelling.ToString());
-                        fields.Add(new FieldInfo(c.Spelling.ToString(), c.Type.Spelling.ToString(), MapType(c.Type.Spelling.ToString()), offset));
-                    }
-                    else if (c.Kind == CXCursorKind.CXCursor_CXXMethod)
-                    {
-                        methods.Add(MethodInfo.FromCursor(c, tu));
-                    }
-                }
-                types.Add(new TypeInfo(name, size, fields, methods));
-            }
-            else if (cursor.Kind == CXCursorKind.CXCursor_FunctionDecl && cursor.CXXAccessSpecifier == CX_CXXAccessSpecifier.CX_CXXPublic)
-            {
-                functions.Add(FunctionInfo.FromCursor(cursor, tu));
-            }
+		static void CollectEntities(CXCursor cursor, CXTranslationUnit tu,
+			List<TypeInfo> types, List<FunctionInfo> functions)
+		{
+			if ((cursor.Kind == CXCursorKind.CXCursor_StructDecl || cursor.Kind == CXCursorKind.CXCursor_ClassDecl)
+				&& cursor.IsDefinition && !string.IsNullOrEmpty(cursor.Spelling.ToString()))
+			{
+				var name = cursor.Spelling.ToString().Replace("TS", "");
+				var size = (int)cursor.Type.SizeOf;
+				var fields = new List<FieldInfo>();
+				var methods = new List<MethodInfo>();
+				foreach (var c in CursorHelpers.GetChildren(cursor))
+				{
+					if (c.Kind == CXCursorKind.CXCursor_FieldDecl)
+					{
+						var offset = cursor.Type.GetOffsetOf(c.Spelling.ToString());
+						fields.Add(new FieldInfo(c.Spelling.ToString(), c.Type.Spelling.ToString(), MapType(c.Type.Spelling.ToString()), offset));
+					}
+					else if (c.Kind == CXCursorKind.CXCursor_CXXMethod)
+					{
+						methods.Add(MethodInfo.FromCursor(c, tu));
+					}
+				}
+				types.Add(new TypeInfo(name, size, fields, methods));
+			}
+			else if (cursor.Kind == CXCursorKind.CXCursor_FunctionDecl && cursor.CXXAccessSpecifier == CX_CXXAccessSpecifier.CX_CXXPublic)
+			{
+				functions.Add(FunctionInfo.FromCursor(cursor, tu));
+			}
 
-            foreach (var child in CursorHelpers.GetChildren(cursor))
-                CollectEntities(child, tu, types, functions);
-        }
+			foreach (var child in CursorHelpers.GetChildren(cursor))
+				CollectEntities(child, tu, types, functions);
+		}
 
-        public static string MapType(string cppType) => cppType switch
-        {
-            "float" => "float",
-            "double" => "double",
-            var t when t.StartsWith("TSVector") => t.Replace("TSVector", "Vector"),
-            var t when t.StartsWith("TSMatrix") => t.Replace("TSMatrix", "Matrix"),
-            var t when t.StartsWith("TSQuaternion") => t.Replace("TSQuaternion", "Quaternion"),
-            _ => "object"
-        };
-    }
+		public static string MapType(string cppType) => cppType switch
+		{
+			"float" => "float",
+			"double" => "double",
+			var t when t.StartsWith("TSVector") => t.Replace("TSVector", "Vector"),
+			var t when t.StartsWith("TSMatrix") => t.Replace("TSMatrix", "Matrix"),
+			var t when t.StartsWith("TSQuaternion") => t.Replace("TSQuaternion", "Quaternion"),
+			_ => "object"
+		};
+	}
 
-    // --- Data Records ---
+	// --- Data Records ---
 
-    public record TypeInfo(string Name, int Size, List<FieldInfo> Fields, List<MethodInfo> Methods);
-    public record FieldInfo(string Name, string CType, string CsType, long Offset);
+	public record TypeInfo(string Name, int Size, List<FieldInfo> Fields, List<MethodInfo> Methods);
+	public record FieldInfo(string Name, string CType, string CsType, long Offset);
 
-    public record MethodInfo(
-        string Name,
-        string ReturnCType,
-        string ReturnCsType,
-        List<ParamInfo> Params,
-        bool IsStatic,
-        string Body)
-    {
-        public static MethodInfo FromCursor(CXCursor cursor, CXTranslationUnit tu)
-        {
-            var returnType = cursor.ResultType.Spelling.ToString();
-            var csReturn = Program.MapType(returnType);
-            var parameters = CursorHelpers.GetChildren(cursor)
-                .Where(c => c.Kind == CXCursorKind.CXCursor_ParmDecl)
-                .Select(p => new ParamInfo(p.Spelling.ToString(), p.Type.Spelling.ToString(), Program.MapType(p.Type.Spelling.ToString())))
-                .ToList();
+	public record MethodInfo(
+		string Name,
+		string ReturnCType,
+		string ReturnCsType,
+		List<ParamInfo> Params,
+		bool IsStatic,
+		string Body)
+	{
+		public static MethodInfo FromCursor(CXCursor cursor, CXTranslationUnit tu)
+		{
+			var returnType = cursor.ResultType.Spelling.ToString();
+			var csReturn = Program.MapType(returnType);
+			var parameters = CursorHelpers.GetChildren(cursor)
+				.Where(c => c.Kind == CXCursorKind.CXCursor_ParmDecl)
+				.Select(p => new ParamInfo(p.Spelling.ToString(), p.Type.Spelling.ToString(), Program.MapType(p.Type.Spelling.ToString())))
+				.ToList();
 
-            // Extract C++ body tokens
-            var tokens = tu.Tokenize(cursor.Extent).ToArray();
-            var bodySb = new StringBuilder();
-            bool inBody = false;
-            foreach (var tok in tokens)
-            {
-                var s = tok.GetSpelling(tu).ToString();
-                if (s == "{") inBody = true;
-                if (inBody) bodySb.Append(s).Append(' ');
-                if (s == "}") break;
-            }
+			// Extract C++ body tokens
+			var tokens = tu.Tokenize(cursor.Extent).ToArray();
+			var bodySb = new StringBuilder();
+			bool inBody = false;
+			foreach (var tok in tokens)
+			{
+				var s = tok.GetSpelling(tu).ToString();
+				if (s == "{") inBody = true;
+				if (inBody) bodySb.Append(s).Append(' ');
+				if (s == "}") break;
+			}
 
-            var translated = Translator.TranslateBody(bodySb.ToString());
-            return new MethodInfo(cursor.Spelling.ToString(), returnType, csReturn, parameters, cursor.IsStatic, translated);
-        }
-    }
+			var translated = Translator.TranslateBody(bodySb.ToString());
+			return new MethodInfo(cursor.Spelling.ToString(), returnType, csReturn, parameters, cursor.IsStatic, translated);
+		}
+	}
 
-    public record ParamInfo(string Name, string CType, string CsType);
+	public record ParamInfo(string Name, string CType, string CsType);
 
-    public record FunctionInfo(
-        string Name,
-        string ReturnCType,
-        string ReturnCsType,
-        List<ParamInfo> Params,
-        string Body)
-    {
-        public static FunctionInfo FromCursor(CXCursor cursor, CXTranslationUnit tu)
-        {
-            var returnType = cursor.ResultType.Spelling.ToString();
-            var csReturn = Program.MapType(returnType);
-            var parameters = CursorHelpers.GetChildren(cursor)
-                .Where(c => c.Kind == CXCursorKind.CXCursor_ParmDecl)
-                .Select(p => new ParamInfo(p.Spelling.ToString(), p.Type.Spelling.ToString(), Program.MapType(p.Type.Spelling.ToString())))
-                .ToList();
+	public record FunctionInfo(
+		string Name,
+		string ReturnCType,
+		string ReturnCsType,
+		List<ParamInfo> Params,
+		string Body)
+	{
+		public static FunctionInfo FromCursor(CXCursor cursor, CXTranslationUnit tu)
+		{
+			var returnType = cursor.ResultType.Spelling.ToString();
+			var csReturn = Program.MapType(returnType);
+			var parameters = CursorHelpers.GetChildren(cursor)
+				.Where(c => c.Kind == CXCursorKind.CXCursor_ParmDecl)
+				.Select(p => new ParamInfo(p.Spelling.ToString(), p.Type.Spelling.ToString(), Program.MapType(p.Type.Spelling.ToString())))
+				.ToList();
 
-            // Extract C++ body tokens
-            var tokens = tu.Tokenize(cursor.Extent).ToArray();
-            var bodySb = new StringBuilder();
-            bool inBody = false;
-            foreach (var tok in tokens)
-            {
-                var s = tok.GetSpelling(tu).ToString();
-                if (s == "{") inBody = true;
-                if (inBody) bodySb.Append(s).Append(' ');
-                if (s == "}") break;
-            }
+			// Extract C++ body tokens
+			var tokens = tu.Tokenize(cursor.Extent).ToArray();
+			var bodySb = new StringBuilder();
+			bool inBody = false;
+			foreach (var tok in tokens)
+			{
+				var s = tok.GetSpelling(tu).ToString();
+				if (s == "{") inBody = true;
+				if (inBody) bodySb.Append(s).Append(' ');
+				if (s == "}") break;
+			}
 
-            return new FunctionInfo(cursor.Spelling.ToString(), returnType, csReturn, parameters, Translator.TranslateBody(bodySb.ToString()));
-        }
-    }
+			return new FunctionInfo(cursor.Spelling.ToString(), returnType, csReturn, parameters, Translator.TranslateBody(bodySb.ToString()));
+		}
+	}
 
-    // --- Translator for method/function bodies ---
+	// --- Translator for method/function bodies ---
 
-    static class Translator
-    {
-        public static string TranslateBody(string cppBody)
-        {
-            return cppBody
-                .Replace("->", ".")
-                .Replace("nullptr", "null")
-                .Replace("TRUE", "true")
-                .Replace("FALSE", "false")
-                .Replace("float(", "(float)")
-                .Replace("double(", "(double)")
-                .Replace("; }", ";")
-                .Replace(";  }", ";");
-            // Extend with more C++→C# mappings as needed
-        }
-    }
+	static class Translator
+	{
+		public static string TranslateBody(string cppBody)
+		{
+			return cppBody
+				.Replace("->", ".")
+				.Replace("nullptr", "null")
+				.Replace("TRUE", "true")
+				.Replace("FALSE", "false")
+				.Replace("float(", "(float)")
+				.Replace("double(", "(double)")
+				.Replace("; }", ";")
+				.Replace(";  }", ";");
+			// Extend with more C++→C# mappings as needed
+		}
+	}
 
-    // --- Interface Generator ---
+	// --- Interface Generator ---
 
-    static class InterfaceGenerator
-    {
-        public static string Generate()
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("using System;\nusing System.Numerics;\n");
-            sb.AppendLine("namespace Terathon.Math\n{");
-            sb.AppendLine("    public interface IVector<T> where T: struct, IVector<T>\n    {\n" +
-                          "        static abstract T Zero { get; }\n" +
-                          "        T Add(T other);\n" +
-                          "        T Subtract(T other);\n" +
-                          "        T Multiply(float scalar);\n" +
-                          "        float Dot(T other);\n" +
-                          "        static abstract T operator +(T a, T b);\n" +
-                          "        static abstract T operator -(T a, T b);\n" +
-                          "        static abstract T operator *(T a, float b);\n" +
-                          "    }\n}");
-            return sb.ToString();
-        }
-    }
+	public static class InterfaceGenerator
+	{
+		public static string Generate()
+		{
+			// Interface generation removed because no types depend on it
+			return string.Empty;
+		}
+	}
 
-    // --- Struct Generator ---
+	// --- Struct Generator ---
 
-    static class StructGenerator
-    {
-        public static string Generate(TypeInfo t)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("using System;\nusing System.Runtime.InteropServices;\n");
-            sb.AppendLine($"namespace Terathon.Math\n{{");
-            sb.AppendLine($"    [StructLayout(LayoutKind.Explicit, Size = {t.Size})]");
-            sb.AppendLine($"    public partial struct {t.Name} : IVector<{t.Name}>\n    {{");
+	public static class StructGenerator
+	{
+		public static string Generate(TypeInfo t)
+		{
+			var sb = new StringBuilder();
+			sb.AppendLine("using System;\nusing System.Runtime.InteropServices;\n");
+			sb.AppendLine($"namespace Terathon.Math\n{{");
+			sb.AppendLine($"    [StructLayout(LayoutKind.Explicit, Size = {t.Size})]");
+			sb.AppendLine($"    public partial struct {t.Name}\n    {{");
 
-            // Fields
-            foreach (var f in t.Fields)
-                sb.AppendLine($"        [FieldOffset({f.Offset})] public {f.CsType} {f.Name};");
+			// Fields
+			foreach (var f in t.Fields)
+				sb.AppendLine($"        [FieldOffset({f.Offset})] public {f.CsType} {f.Name};");
 
-            // Methods
-            foreach (var m in t.Methods)
-            {
-                var parms = string.Join(", ", m.Params.Select(p => $"{p.CsType} {p.Name}"));
-                var staticMod = m.IsStatic ? "static " : "";
-                sb.AppendLine($"        public {staticMod}{m.ReturnCsType} {m.Name}({parms})");
-                sb.AppendLine("        {");
-                sb.AppendLine("            " + m.Body.Trim());
-                sb.AppendLine("        }");
-            }
+			// Methods
+			foreach (var m in t.Methods)
+			{
+				var parms = string.Join(", ", m.Params.Select(p => $"{p.CsType} {p.Name}"));
+				var staticMod = m.IsStatic ? "static " : "";
+				sb.AppendLine($"        public {staticMod}{m.ReturnCsType} {m.Name}({parms})");
+				sb.AppendLine("        {");
+				sb.AppendLine("            " + m.Body.Trim());
+				sb.AppendLine("        }");
+			}
 
-            // Swizzle properties
-            if (t.Name.StartsWith("Vector"))
-            {
-                int dims = int.Parse(new string(t.Name.Where(char.IsDigit).ToArray()));
-                var comps = new[] { 'X', 'Y', 'Z', 'W' };
-                for (int len = 2; len <= dims; ++len)
-                    foreach (var combo in Enumerable.Range(0, (int)Math.Pow(dims, len))
-                        .Select(i => Enumerable.Range(0, len)
-                            .Select(j => (i / (int)Math.Pow(dims, j)) % dims)
-                            .ToArray()))
-                    {
-                        var prop = string.Concat(combo.Select(i => comps[i]));
-                        var args = string.Join(", ", combo.Select(i => $"this.{comps[i]}"));
-                        sb.AppendLine($"        public {t.Name} {prop} => new {t.Name}({args});");
-                    }
-            }
+			// Swizzle properties
+			if (t.Name.StartsWith("Vector"))
+			{
+				int dims = int.Parse(new string(t.Name.Where(char.IsDigit).ToArray()));
+				var comps = new[] { 'X', 'Y', 'Z', 'W' };
+				for (int len = 2; len <= dims; ++len)
+					foreach (var combo in Enumerable.Range(0, (int)Math.Pow(dims, len))
+						.Select(i => Enumerable.Range(0, len)
+							.Select(j => (i / (int)Math.Pow(dims, j)) % dims)
+							.ToArray()))
+					{
+						var prop = string.Concat(combo.Select(i => comps[i]));
+						var args = string.Join(", ", combo.Select(i => $"this.{comps[i]}"));
+						sb.AppendLine($"        public {t.Name} {prop} => new {t.Name}({args});");
+					}
+			}
 
-            sb.AppendLine("    }\n}");
-            return sb.ToString();
-        }
-    }
+			sb.AppendLine("    }\n}");
+			return sb.ToString();
+		}
+	}
 
-    // --- Free Function Generator ---
+	// --- Free Function Generator ---
 
-    static class FunctionGenerator
-    {
-        public static string Generate(IEnumerable<FunctionInfo> funcs)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("using System;\nnamespace Terathon.Math\n{");
-            sb.AppendLine("    public static class TerathonFunctions\n    {\n");
-            foreach (var f in funcs)
-            {
-                var parms = string.Join(", ", f.Params.Select(p => $"{p.CsType} {p.Name}"));
-                sb.AppendLine($"        public static {f.ReturnCsType} {f.Name}({parms})");
-                sb.AppendLine("        {");
-                sb.AppendLine("            " + f.Body.Trim());
-                sb.AppendLine("        }\n");
-            }
-            sb.AppendLine("    }\n}");
-            return sb.ToString();
-        }
-    }
+	static class FunctionGenerator
+	{
+		public static string Generate(IEnumerable<FunctionInfo> funcs)
+		{
+			var sb = new StringBuilder();
+			sb.AppendLine("using System;\nnamespace Terathon.Math\n{");
+			sb.AppendLine("    public static class TerathonFunctions\n    {\n");
+			foreach (var f in funcs)
+			{
+				var parms = string.Join(", ", f.Params.Select(p => $"{p.CsType} {p.Name}"));
+				sb.AppendLine($"        public static {f.ReturnCsType} {f.Name}({parms})");
+				sb.AppendLine("        {");
+				sb.AppendLine("            " + f.Body.Trim());
+				sb.AppendLine("        }\n");
+			}
+			sb.AppendLine("    }\n}");
+			return sb.ToString();
+		}
+	}
 
-    // --- Helper utilities ---
+	// --- Helper utilities ---
 
-    static class CursorHelpers
-    {
-        public static unsafe IEnumerable<CXCursor> GetChildren(CXCursor cursor)
-        {
-            var list = new List<CXCursor>();
-            cursor.VisitChildren((child, parent, data) =>
-            {
-                list.Add(child);
-                return CXChildVisitResult.CXChildVisit_Continue;
-            }, new CXClientData(IntPtr.Zero));
-            return list;
-        }
-    }
+	static class CursorHelpers
+	{
+		public static unsafe IEnumerable<CXCursor> GetChildren(CXCursor cursor)
+		{
+			var list = new List<CXCursor>();
+			cursor.VisitChildren((child, parent, data) =>
+			{
+				list.Add(child);
+				return CXChildVisitResult.CXChildVisit_Continue;
+			}, new CXClientData(IntPtr.Zero));
+			return list;
+		}
+	}
 }

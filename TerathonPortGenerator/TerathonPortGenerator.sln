@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36301.6
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TerathonPortGenerator", "TerathonPortGenerator\TerathonPortGenerator.csproj", "{B21FA4AF-0FE3-404C-B913-72D4D9CBBB60}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TerathonPortGenerator.Tests", "TerathonPortGenerator.Tests\TerathonPortGenerator.Tests.csproj", "{68F4CB14-E091-45F5-9AD9-522ED52D4C0E}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Terathon-Math-Library", "Terathon-Math-Library", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
 		Terathon-Math-Library\TSAlgebra.h = Terathon-Math-Library\TSAlgebra.h
@@ -58,12 +60,16 @@ Global
 		{B21FA4AF-0FE3-404C-B913-72D4D9CBBB60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B21FA4AF-0FE3-404C-B913-72D4D9CBBB60}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B21FA4AF-0FE3-404C-B913-72D4D9CBBB60}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B21FA4AF-0FE3-404C-B913-72D4D9CBBB60}.Release|Any CPU.Build.0 = Release|Any CPU
-		{76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
+               {B21FA4AF-0FE3-404C-B913-72D4D9CBBB60}.Release|Any CPU.Build.0 = Release|Any CPU
+               {76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+               {76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+               {76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+               {76663B0C-3E42-41D2-8DD7-EDA9D4B4B0EE}.Release|Any CPU.Build.0 = Release|Any CPU
+                {68F4CB14-E091-45F5-9AD9-522ED52D4C0E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+                {68F4CB14-E091-45F5-9AD9-522ED52D4C0E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+                {68F4CB14-E091-45F5-9AD9-522ED52D4C0E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+                {68F4CB14-E091-45F5-9AD9-522ED52D4C0E}.Release|Any CPU.Build.0 = Release|Any CPU
+        EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
